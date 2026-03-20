@@ -1,0 +1,258 @@
+{% extends "base.html" %}
+{% block title %}Compare Candidates — Wise{% endblock %}
+{% block content %}
+
+<div style="padding:2.5rem 0 1rem">
+  <div class="wrap">
+    <div class="section-eyebrow">Side-by-Side</div>
+    <h1 style="font-size:1.8rem;font-weight:800;letter-spacing:-.03em;margin-bottom:.5rem">Compare Two Candidates</h1>
+    <p class="small muted">Enter skills for two candidates, paste a job description, and see a head-to-head breakdown — scores, gaps, GitHub credibility, and a clear winner.</p>
+  </div>
+</div>
+
+<div style="padding-bottom:6rem">
+  <div class="wrap">
+
+    <!-- JD row -->
+    <div class="card mb-lg">
+      <div class="card-body" style="display:grid;grid-template-columns:1fr auto;gap:1rem;align-items:end">
+        <div>
+          <div class="flex center apart mb-sm">
+            <label class="field-label" style="margin:0">Job Description</label>
+            <div class="flex gap-sm" style="flex-wrap:wrap">
+              <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.7rem" onclick="loadSampleJD('compareJD','ml_engineer')">ML</button>
+              <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.7rem" onclick="loadSampleJD('compareJD','fullstack')">Full Stack</button>
+              <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.7rem" onclick="loadSampleJD('compareJD','devops')">DevOps</button>
+              <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.7rem" onclick="loadSampleJD('compareJD','backend_go')">Go</button>
+            </div>
+          </div>
+          <textarea class="textarea" id="compareJD" rows="3" placeholder="Paste a job description…"></textarea>
+        </div>
+        <button class="btn btn-primary btn-large" onclick="runComparison()" style="white-space:nowrap;align-self:flex-end">Compare →</button>
+      </div>
+    </div>
+
+    <!-- two candidate inputs -->
+    <div class="flex gap-xl mb-lg" style="flex-wrap:wrap;align-items:start">
+      <!-- candidate A -->
+      <div class="flex-1" style="min-width:280px">
+        <div class="card">
+          <div class="card-top" style="padding-bottom:.75rem">
+            <div class="flex center gap-sm mb-sm">
+              <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#6366f1,#8b5cf6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.75rem;font-weight:800">A</div>
+              <h3 style="font-size:.95rem;font-weight:800">Candidate A</h3>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="field"><label class="field-label">Name</label><input class="input" id="nameA" value="Arjun Mehta" placeholder="Name"/></div>
+            <div class="field"><label class="field-label">GitHub Username <small>optional</small></label><input class="input" id="githubA" placeholder='username or "demo"'/></div>
+            <div class="field">
+              <label class="field-label">Skills <small>comma-separated</small></label>
+              <textarea class="textarea" id="skillsA" rows="3">python, machine learning, scikit-learn, pandas, sql, flask, git, linux</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- vs -->
+      <div style="display:flex;align-items:center;justify-content:center;padding-top:3rem;flex-shrink:0">
+        <div style="width:40px;height:40px;border-radius:50%;background:var(--faint);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:.8rem;color:var(--ink-mid)">VS</div>
+      </div>
+
+      <!-- candidate B -->
+      <div class="flex-1" style="min-width:280px">
+        <div class="card">
+          <div class="card-top" style="padding-bottom:.75rem">
+            <div class="flex center gap-sm mb-sm">
+              <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#10b981,#0ea5e9);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.75rem;font-weight:800">B</div>
+              <h3 style="font-size:.95rem;font-weight:800">Candidate B</h3>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="field"><label class="field-label">Name</label><input class="input" id="nameB" value="Priya Krishnamurthy" placeholder="Name"/></div>
+            <div class="field"><label class="field-label">GitHub Username <small>optional</small></label><input class="input" id="githubB" placeholder='username or "demo"'/></div>
+            <div class="field">
+              <label class="field-label">Skills <small>comma-separated</small></label>
+              <textarea class="textarea" id="skillsB" rows="3">javascript, typescript, react, node.js, sql, docker, aws, graphql</textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- results -->
+    <div id="compareResults" class="hidden"></div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function runComparison() {
+  const jd      = document.getElementById('compareJD').value.trim();
+  const nameA   = document.getElementById('nameA').value.trim() || 'Candidate A';
+  const nameB   = document.getElementById('nameB').value.trim() || 'Candidate B';
+  const skillsA = document.getElementById('skillsA').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const skillsB = document.getElementById('skillsB').value.split(',').map(s=>s.trim()).filter(Boolean);
+
+  if (!jd) { notify('Paste a job description first.','bad'); return; }
+  if (!skillsA.length || !skillsB.length) { notify('Both candidates need skills.','bad'); return; }
+
+  showLoading('Scoring both candidates…');
+  try {
+    const [resA, resB] = await Promise.all([
+      fetch('/api/score-one', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name:nameA, skills:skillsA, jd_text:jd, meta:{name:nameA}}) }).then(r=>r.json()),
+      fetch('/api/score-one', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name:nameB, skills:skillsB, jd_text:jd, meta:{name:nameB}}) }).then(r=>r.json()),
+    ]);
+    showComparison(resA, resB, skillsA, skillsB, jd);
+  } catch(err) { notify('Error: '+err.message, 'bad'); }
+  finally { hideLoading(); }
+}
+
+function showComparison(a, b, skillsA, skillsB, jd) {
+  const winner  = a.final_score >= b.final_score ? 'A' : 'B';
+  const scoreA  = a.final_score;
+  const scoreB  = b.final_score;
+  const colorA  = colorForScore(scoreA);
+  const colorB  = colorForScore(scoreB);
+
+  const bdA = a.score_breakdown || {};
+  const bdB = b.score_breakdown || {};
+
+  // bar rows for each breakdown item
+  function compBars(bdA, bdB) {
+    const labels = { direct_skill_match:'Technical', semantic_similarity:'Semantic', github_credibility:'GitHub', preferred_skills_bonus:'Preferred' };
+    return Object.entries(bdA).map(([k, vA]) => {
+      const vB    = bdB[k] || 0;
+      const label = labels[k] || k;
+      const winsA = vA >= vB;
+      return `
+      <div style="margin-bottom:.85rem">
+        <div class="flex apart center mb-sm tiny bold muted">${label}<span>${vA}% vs ${vB}%</span></div>
+        <div class="flex gap-sm center">
+          <div style="width:48%;text-align:right">
+            <div style="height:7px;background:var(--faint);border-radius:999px;overflow:hidden;direction:rtl">
+              <div style="height:100%;width:0%;background:${winsA?colorA:'var(--border-mid)'};border-radius:999px;transition:width 1s var(--ease-out)" data-width="${vA}" class="bar-fill-anim"></div>
+            </div>
+          </div>
+          <div style="width:4%;text-align:center" class="tiny muted">—</div>
+          <div style="width:48%">
+            <div style="height:7px;background:var(--faint);border-radius:999px;overflow:hidden">
+              <div style="height:100%;width:0%;background:${!winsA?colorB:'var(--border-mid)'};border-radius:999px;transition:width 1s var(--ease-out)" data-width="${vB}" class="bar-fill-anim"></div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const results = document.getElementById('compareResults');
+  results.classList.remove('hidden');
+  results.innerHTML = `
+  <div class="anim-pop">
+
+    <!-- winner banner -->
+    <div class="card mb-lg" style="background:linear-gradient(135deg,var(--green-pale),var(--blue-pale));border-color:var(--green)">
+      <div class="card-body text-center">
+        <div class="tiny bold muted mb-sm" style="text-transform:uppercase;letter-spacing:.1em">Better Match</div>
+        <div style="font-size:1.5rem;font-weight:800;color:var(--ink)">${winner === 'A' ? a.candidate : b.candidate}</div>
+        <div class="small muted mt-sm">${winner === 'A' ? scoreA : scoreB}/100 · ${winner === 'A' ? a.grade : b.grade}</div>
+        <div class="compare-winner-badge mt-md">✓ Recommended for this role</div>
+      </div>
+    </div>
+
+    <!-- side by side scores -->
+    <div class="flex gap-xl mb-lg" style="flex-wrap:wrap;align-items:start">
+      <div class="compare-col ${winner==='A'?'winner':'loser'}">
+        <div class="compare-head">
+          <div class="flex center apart">
+            <div>
+              <div class="bold">${a.candidate}</div>
+              <div class="tiny muted">${skillsA.length} skills listed</div>
+            </div>
+            ${winner==='A'?'<span class="compare-winner-badge">Winner</span>':''}
+          </div>
+        </div>
+        <div class="compare-metric"><span class="label">Score</span><span class="value" style="color:${colorA}">${scoreA}/100</span></div>
+        <div class="compare-metric"><span class="label">Grade</span><span class="value" style="color:${colorA}">${a.grade}</span></div>
+        <div class="compare-metric"><span class="label">Matched Skills</span><span class="value">${(a.matched_skills||[]).length}</span></div>
+        <div class="compare-metric"><span class="label">Missing Skills</span><span class="value">${(a.missing_skills||[]).length}</span></div>
+        <div class="compare-metric"><span class="label">Fairness Delta</span><span class="value" style="color:var(--green)">Δ ${a.bias_check?.delta||0}</span></div>
+        <div style="padding:.75rem 1.25rem">
+          <div class="tiny muted mb-sm">Matched</div>
+          <div class="tag-group">${matchedTags(a.matched_skills)||'<span class="tiny muted">—</span>'}</div>
+          ${(a.missing_skills||[]).length?`<div class="tiny muted mt-sm mb-sm">Missing</div><div class="tag-group">${missingTags(a.missing_skills)}</div>`:''}
+        </div>
+      </div>
+
+      <div class="compare-col ${winner==='B'?'winner':'loser'}">
+        <div class="compare-head">
+          <div class="flex center apart">
+            <div>
+              <div class="bold">${b.candidate}</div>
+              <div class="tiny muted">${skillsB.length} skills listed</div>
+            </div>
+            ${winner==='B'?'<span class="compare-winner-badge">Winner</span>':''}
+          </div>
+        </div>
+        <div class="compare-metric"><span class="label">Score</span><span class="value" style="color:${colorB}">${scoreB}/100</span></div>
+        <div class="compare-metric"><span class="label">Grade</span><span class="value" style="color:${colorB}">${b.grade}</span></div>
+        <div class="compare-metric"><span class="label">Matched Skills</span><span class="value">${(b.matched_skills||[]).length}</span></div>
+        <div class="compare-metric"><span class="label">Missing Skills</span><span class="value">${(b.missing_skills||[]).length}</span></div>
+        <div class="compare-metric"><span class="label">Fairness Delta</span><span class="value" style="color:var(--green)">Δ ${b.bias_check?.delta||0}</span></div>
+        <div style="padding:.75rem 1.25rem">
+          <div class="tiny muted mb-sm">Matched</div>
+          <div class="tag-group">${matchedTags(b.matched_skills)||'<span class="tiny muted">—</span>'}</div>
+          ${(b.missing_skills||[]).length?`<div class="tiny muted mt-sm mb-sm">Missing</div><div class="tag-group">${missingTags(b.missing_skills)}</div>`:''}
+        </div>
+      </div>
+    </div>
+
+    <!-- breakdown comparison -->
+    <div class="card mb-lg">
+      <div class="card-top"><h3 style="font-size:.9rem;font-weight:800">Head-to-Head Breakdown</h3></div>
+      <div class="card-body">
+        <div class="flex apart center mb-md">
+          <div class="flex center gap-sm"><div style="width:12px;height:12px;border-radius:50%;background:${colorA}"></div><span class="small bold">${a.candidate}</span></div>
+          <div class="flex center gap-sm"><div style="width:12px;height:12px;border-radius:50%;background:${colorB}"></div><span class="small bold">${b.candidate}</span></div>
+        </div>
+        <div id="compBars">${compBars(bdA, bdB)}</div>
+      </div>
+    </div>
+
+    <!-- radars -->
+    <div class="grid-two mb-lg">
+      <div class="card">
+        <div class="card-top mb-sm"><div class="small bold">${a.candidate} — Score Radar</div></div>
+        <div class="card-body text-center"><div id="radarA" class="radar-wrap"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-top mb-sm"><div class="small bold">${b.candidate} — Score Radar</div></div>
+        <div class="card-body text-center"><div id="radarB" class="radar-wrap"></div></div>
+      </div>
+    </div>
+
+    <!-- copy row -->
+    <div class="flex gap-md center" style="flex-wrap:wrap">
+      <button class="copy-btn" onclick="copyText('${a.candidate}: ${scoreA}/100 (${a.grade}) vs ${b.candidate}: ${scoreB}/100 (${b.grade}) — Winner: ${winner==='A'?a.candidate:b.candidate}', this)">Copy Comparison</button>
+      <a href="/analyze" class="btn btn-small btn-outline">Full Report →</a>
+    </div>
+  </div>`;
+
+  // animate bars
+  setTimeout(() => {
+    results.querySelectorAll('.bar-fill-anim').forEach(el => { el.style.width = el.dataset.width + '%'; });
+    const crit = ['Technical','GitHub','Resume','Comms'];
+    const bdKeys = ['direct_skill_match','github_credibility','preferred_skills_bonus','preferred_skills_bonus'];
+    const valsA = [bdA.direct_skill_match||0, bdA.github_credibility||0, bdA.semantic_similarity||0, bdA.preferred_skills_bonus||0];
+    const valsB = [bdB.direct_skill_match||0, bdB.github_credibility||0, bdB.semantic_similarity||0, bdB.preferred_skills_bonus||0];
+    drawRadar('radarA', crit, valsA, colorA);
+    drawRadar('radarB', crit, valsB, colorB);
+  }, 120);
+
+  results.scrollIntoView({ behavior:'smooth', block:'start' });
+  notify(`Winner: ${winner==='A'?a.candidate:b.candidate}`, 'ok');
+}
+</script>
+{% endblock %}

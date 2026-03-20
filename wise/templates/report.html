@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% block title %}Transparent Report — Wise{% endblock %}
+{% block content %}
+
+<div style="padding:2.5rem 0 1rem">
+  <div class="wrap-sm">
+    <div class="section-eyebrow">Transparent Scoring</div>
+    <h1 style="font-size:1.8rem;font-weight:800;letter-spacing:-.03em;margin-bottom:.5rem">Glass-Box Report</h1>
+    <p class="small muted">Build a candidate profile, paste a job description, and see exactly how every point is computed — then confirm demographic data had zero effect.</p>
+  </div>
+</div>
+
+<div style="padding-bottom:4rem">
+  <div class="wrap-sm">
+
+    <div class="grid-two" style="align-items:start">
+
+      <!-- inputs -->
+      <div>
+        <div class="card mb-lg">
+          <div class="card-top">
+            <h2 style="font-size:.95rem;font-weight:800;margin-bottom:.25rem">Candidate Details</h2>
+            <p class="tiny muted">Demographic fields are passed to the fairness check only — they never enter the score calculation.</p>
+          </div>
+          <div class="card-body">
+            <div class="row two">
+              <div class="field">
+                <label class="field-label">Name <span class="chip chip-purple" style="font-size:.6rem">fairness only</span></label>
+                <input class="input" id="cName" value="Riya Sharma"/>
+              </div>
+              <div class="field">
+                <label class="field-label">Gender <span class="chip chip-purple" style="font-size:.6rem">fairness only</span></label>
+                <input class="input" id="cGender" value="Female"/>
+              </div>
+            </div>
+            <div class="row two">
+              <div class="field">
+                <label class="field-label">University <span class="chip chip-purple" style="font-size:.6rem">fairness only</span></label>
+                <input class="input" id="cUniversity" value="IIT Madras"/>
+              </div>
+              <div class="field">
+                <label class="field-label">City <span class="chip chip-purple" style="font-size:.6rem">fairness only</span></label>
+                <input class="input" id="cCity" value="Chennai"/>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field-label">Skills <small>comma-separated</small></label>
+              <textarea class="textarea" id="cSkills" rows="3">python, machine learning, pytorch, sql, docker, data analysis, numpy, pandas, statistics</textarea>
+            </div>
+            <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none" onclick="extractFromText()">Extract Skills from Free Text →</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-top">
+            <div class="flex center apart mb-sm">
+              <h2 style="font-size:.95rem;font-weight:800">Job Description</h2>
+              <div class="flex gap-sm">
+                <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.68rem" onclick="loadSampleJD('reportJD','ml_engineer')">ML</button>
+                <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.68rem" onclick="loadSampleJD('reportJD','fullstack')">FS</button>
+                <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.68rem" onclick="loadSampleJD('reportJD','devops')">Ops</button>
+              </div>
+            </div>
+          </div>
+          <div class="card-body">
+            <textarea class="textarea" id="reportJD" rows="7" placeholder="Paste any job description…"></textarea>
+            <button class="btn btn-primary btn-full mt-md" onclick="buildReport()">
+              Generate Transparent Report →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- result -->
+      <div id="reportResult">
+        <div class="placeholder">
+          <div class="placeholder-icon">⚖</div>
+          <div class="placeholder-title">Ready to score</div>
+          <div class="placeholder-hint">Fill in a candidate profile and paste a job description, then click Generate.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="auditArea" class="hidden mt-xl">
+      <h2 style="font-size:1rem;font-weight:800;margin-bottom:1rem">Per-Skill Evidence</h2>
+      <div id="auditTable"></div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function extractFromText() {
+  const text = document.getElementById('cSkills').value.trim();
+  if (!text) return;
+  showLoading('Extracting…');
+  try {
+    const res  = await fetch('/api/extract-skills', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) });
+    const data = await res.json();
+    document.getElementById('cSkills').value = (data.skills || []).join(', ');
+    notify(`${data.count} skills found`);
+  } finally { hideLoading(); }
+}
+
+async function buildReport() {
+  const name       = document.getElementById('cName').value.trim() || 'Candidate';
+  const gender     = document.getElementById('cGender').value.trim();
+  const university = document.getElementById('cUniversity').value.trim();
+  const city       = document.getElementById('cCity').value.trim();
+  const rawSkills  = document.getElementById('cSkills').value.trim();
+  const jd         = document.getElementById('reportJD').value.trim();
+
+  if (!rawSkills || !jd) { notify('Fill in skills and a job description.', 'bad'); return; }
+
+  const skills = rawSkills.split(',').map(s => s.trim()).filter(Boolean);
+  showLoading('Computing score…');
+  try {
+    const res  = await fetch('/api/score-one', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, skills, jd_text: jd, meta: { name, gender, university, location: city } })
+    });
+    const data = await res.json();
+    showReport(data, { name, gender, university, location: city });
+  } catch (err) { notify('Error: ' + err.message, 'bad'); }
+  finally { hideLoading(); }
+}
+
+function showReport(result, meta) {
+  const score    = result.final_score || 0;
+  const color    = colorForScore(score);
+  const breakdown= result.score_breakdown || {};
+
+  document.getElementById('reportResult').innerHTML = `
+  <div class="anim-pop">
+
+    <div class="card mb-lg">
+      <div class="card-body text-center">
+        <div class="score-number" style="color:${color}">${score}</div>
+        <div class="score-denom">/ 100</div>
+        <div class="score-grade mt-sm" style="background:${color}18;color:${color};border:1.5px solid ${color}40">${result.grade}</div>
+        <div class="small muted mt-sm">${result.recommendation || ''}</div>
+      </div>
+    </div>
+
+    <div class="card mb-lg">
+      <div class="card-top"><h3 style="font-size:.85rem;font-weight:800">Score Breakdown</h3></div>
+      <div class="card-body" id="reportBars">${scoreBars(breakdown)}</div>
+    </div>
+
+    <div class="card mb-lg">
+      <div class="card-body">
+        <div class="tiny bold muted mb-sm">MATCHED (${(result.matched_skills || []).length})</div>
+        <div class="tag-group mb-lg">${matchedTags(result.matched_skills) || '<span class="small muted">None</span>'}</div>
+        <div class="tiny bold muted mb-sm">MISSING (${(result.missing_skills || []).length})</div>
+        <div class="tag-group">${missingTags(result.missing_skills) || '<span class="small green bold">All covered ✓</span>'}</div>
+      </div>
+    </div>
+
+    <div class="mb-lg">${reasoningSummary(result)}</div>
+
+    ${buildFairnessSection(result.bias_check, meta)}
+
+  </div>`;
+
+  setTimeout(() => triggerBars(document.getElementById('reportBars')), 80);
+  buildAudit(result.skill_evidence || {});
+  document.getElementById('reportResult').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  notify('Report ready!', 'ok');
+}
+
+function buildFairnessSection(check, meta) {
+  if (!check) return '';
+  const ok  = check.passed;
+  const rows = Object.entries(meta).filter(([, v]) => v).map(([k, v]) => `
+    <div class="fairness-row">
+      <span class="key">${k.charAt(0).toUpperCase() + k.slice(1)}</span>
+      <span class="val" style="text-decoration:line-through;color:var(--ink-soft);font-size:.82rem">${v}</span>
+    </div>`).join('');
+
+  return `
+  <div class="fairness-panel">
+    <div class="fairness-head">
+      <span class="fairness-title">Fairness Verification</span>
+      <span class="chip ${ok ? 'chip-green' : 'chip-red'}">${ok ? '✓ Passed — Δ=' + check.delta : '⚠ Review'}</span>
+    </div>
+    <div class="fairness-body">
+      <div class="tiny bold muted mb-sm">Demographic fields stripped from scoring:</div>
+      ${rows}
+      <div class="divider"></div>
+      <div class="fairness-row"><span class="key">Score with demographics</span><span class="val">${check.score_with_demo}/100</span></div>
+      <div class="fairness-row"><span class="key">Score without demographics</span><span class="val">${check.score_sans_demo}/100</span></div>
+      <div class="fairness-row">
+        <span class="key">Change</span>
+        <span class="val" style="color:${ok ? 'var(--green)' : 'var(--red)'};font-size:1.1rem">Δ ${check.delta}</span>
+      </div>
+      <div class="fairness-verdict ${ok ? 'ok' : 'warn'} mt-sm">${check.verdict}</div>
+      <div class="tiny muted mt-sm mono" style="line-height:1.6">
+        Scoring uses: skill matching, semantic similarity, GitHub credibility, preferred skill bonus.
+        None of these accept demographic inputs. A delta of ${check.delta} confirms zero influence.
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildAudit(evidence) {
+  const keys = Object.keys(evidence);
+  if (!keys.length) return;
+
+  const rows = Object.entries(evidence).map(([skill, data]) => {
+    const src   = data.source || 'unknown';
+    const conf  = data.confidence || 0;
+    const proof = (data.evidence || []).join('; ');
+    const tagClass = src === 'github_verified' ? 'matched' : src === 'missing' ? 'missing' : 'present';
+    const srcColor = src === 'github_verified' ? 'var(--green)' : src === 'missing' ? 'var(--red)' : 'var(--blue)';
+    return `
+    <div style="display:grid;grid-template-columns:1fr 130px 70px 1fr;gap:1rem;align-items:center;padding:.6rem 1.25rem;border-bottom:1px solid var(--border);font-size:.82rem">
+      <div><span class="skill-tag ${tagClass}">${skill}</span></div>
+      <div class="tiny" style="color:${srcColor};font-weight:600">${src.split('_').join(' ')}</div>
+      <div class="mono tiny" style="color:${srcColor}">${src !== 'missing' ? Math.round(conf * 100) + '%' : '—'}</div>
+      <div class="tiny muted">${proof || '—'}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('auditArea').classList.remove('hidden');
+  document.getElementById('auditTable').innerHTML = `
+  <div class="card">
+    <div style="display:grid;grid-template-columns:1fr 130px 70px 1fr;gap:1rem;padding:.55rem 1.25rem;background:var(--off-white);border-bottom:1px solid var(--border)">
+      <div class="tiny bold muted" style="text-transform:uppercase">Skill</div>
+      <div class="tiny bold muted" style="text-transform:uppercase">Source</div>
+      <div class="tiny bold muted" style="text-transform:uppercase">Confidence</div>
+      <div class="tiny bold muted" style="text-transform:uppercase">Evidence</div>
+    </div>
+    ${rows}
+  </div>`;
+}
+</script>
+{% endblock %}

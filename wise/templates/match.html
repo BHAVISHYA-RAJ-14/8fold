@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Match Candidates — Wise{% endblock %}
+{% block content %}
+
+<div style="padding:2.5rem 0 1rem">
+  <div class="wrap">
+    <div class="section-eyebrow">Talent Matching</div>
+    <h1 style="font-size:1.8rem;font-weight:800;letter-spacing:-.03em;margin-bottom:.5rem">Rank &amp; Compare</h1>
+    <p class="small muted">Paste any job description and Wise ranks all candidates by match score — with full reasoning and a fairness check on every result.</p>
+  </div>
+</div>
+
+<div style="padding-bottom:4rem">
+  <div class="wrap">
+
+    <div class="card mb-lg">
+      <div class="card-body" style="display:grid;grid-template-columns:1fr auto;gap:1rem;align-items:end">
+        <div>
+          <div class="flex center apart mb-sm">
+            <label class="field-label" style="margin:0">Job Description</label>
+            <div class="flex gap-sm" style="flex-wrap:wrap">
+              <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.7rem" onclick="loadSampleJD('jdField','ml_engineer')">ML Engineer</button>
+              <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.7rem" onclick="loadSampleJD('jdField','fullstack')">Full Stack</button>
+              <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.7rem" onclick="loadSampleJD('jdField','data_engineer')">Data Eng</button>
+              <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.7rem" onclick="loadSampleJD('jdField','devops')">DevOps</button>
+              <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.7rem" onclick="loadSampleJD('jdField','backend_go')">Go</button>
+              <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none;font-size:.7rem" onclick="loadSampleJD('jdField','frontend')">Frontend</button>
+            </div>
+          </div>
+          <textarea class="textarea" id="jdField" rows="4" placeholder="Paste a job description or pick a sample above…"></textarea>
+        </div>
+        <button class="btn btn-primary btn-large" onclick="runRanking()" style="white-space:nowrap;align-self:flex-end">Rank All →</button>
+      </div>
+    </div>
+
+    <div id="requirementsBox" class="hidden card mb-lg">
+      <div class="card-body" style="padding:1.25rem 1.5rem">
+        <div class="flex center apart mb-sm">
+          <span class="tiny bold muted" style="text-transform:uppercase;letter-spacing:.08em">Extracted Requirements</span>
+          <span class="chip chip-blue" id="levelTag"></span>
+        </div>
+        <div class="mb-sm">
+          <span class="tiny muted bold">Required · </span>
+          <span class="tag-group" id="requiredTags" style="display:inline-flex"></span>
+        </div>
+        <div id="optionalRow" class="hidden">
+          <span class="tiny muted bold">Optional · </span>
+          <span class="tag-group" id="optionalTags" style="display:inline-flex"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="rankingsArea" class="hidden">
+      <div class="rankings mb-sm" id="rankingsTable"></div>
+      <div class="tiny muted mono">↑ Click any row for the full reasoning chain and fairness check</div>
+    </div>
+
+    <div id="candidateDrawer" class="hidden mt-xl"></div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentRanking = null;
+
+async function runRanking() {
+  const jd = document.getElementById('jdField').value.trim();
+  if (!jd) { notify('Enter a job description first.', 'bad'); return; }
+  showLoading('Ranking candidates…');
+  try {
+    const res  = await fetch('/api/rank', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jd_text: jd }) });
+    const data = await res.json();
+    currentRanking = data;
+    showRequirements(data.jd);
+    buildTable(data.ranked);
+    document.getElementById('candidateDrawer').classList.add('hidden');
+    notify('Ranking complete!', 'ok');
+  } catch (err) { notify('Error: ' + err.message, 'bad'); }
+  finally { hideLoading(); }
+}
+
+function showRequirements(jd) {
+  document.getElementById('levelTag').textContent = (jd.level || 'mid').toUpperCase();
+  document.getElementById('requiredTags').innerHTML  = (jd.must_have || []).map(s => `<span class="skill-tag present">${s}</span>`).join('');
+  const optional = jd.nice_to_have || [];
+  if (optional.length) {
+    document.getElementById('optionalTags').innerHTML = optional.map(s => `<span class="skill-tag plain">${s}</span>`).join('');
+    document.getElementById('optionalRow').classList.remove('hidden');
+  }
+  document.getElementById('requirementsBox').classList.remove('hidden');
+}
+
+function buildTable(ranked) {
+  const rows = ranked.map((candidate, i) => {
+    const badgeClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'plain';
+    const score      = candidate.final_score;
+    const color      = colorForScore(score);
+    return `
+    <div class="ranking-row" onclick="openCandidate(${i})" id="row-${i}">
+      <div class="rank-badge ${badgeClass}">${i + 1}</div>
+      <div>
+        <div class="candidate-name">${candidate.candidate}</div>
+        <div class="candidate-meta">${candidate.title || ''} · ${candidate.experience_years || 0}yr</div>
+      </div>
+      <div style="font-family:var(--code-font);font-size:1.1rem;font-weight:800;color:${color}">${score}<span style="font-size:.7rem;color:var(--ink-soft);font-weight:500"> /100</span></div>
+      <div class="chip ${chipForScore(score)}" style="font-size:.75rem">${candidate.grade}</div>
+      <div class="tiny muted" style="line-height:1.4">${candidate.recommendation?.split('—')[0] || ''}</div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('rankingsTable').innerHTML = `
+    <div class="rankings-header">
+      <div></div><div>Candidate</div>
+      <div>Score</div><div>Grade</div><div>Recommendation</div>
+    </div>${rows}`;
+  document.getElementById('rankingsArea').classList.remove('hidden');
+  document.getElementById('rankingsArea').scrollIntoView({ behavior: 'smooth' });
+}
+
+function openCandidate(i) {
+  const candidate = currentRanking.ranked[i];
+  const breakdown = candidate.score_breakdown || {};
+  const score     = candidate.final_score;
+  const color     = colorForScore(score);
+
+  document.querySelectorAll('.ranking-row').forEach((row, j) => row.classList.toggle('selected', j === i));
+
+  const drawer = document.getElementById('candidateDrawer');
+  drawer.classList.remove('hidden');
+  drawer.innerHTML = `
+  <div class="card anim-pop">
+    <div class="card-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem">
+
+        <div>
+          <div class="tiny bold muted mb-sm">SCORE BREAKDOWN</div>
+          <div class="text-center mb-lg" style="padding:1rem 0">
+            <div class="score-number" style="color:${color}">${score}</div>
+            <div class="score-denom">/ 100</div>
+            <div class="score-grade mt-sm" style="background:${color}18;color:${color};border:1.5px solid ${color}40">${candidate.grade}</div>
+          </div>
+          <div id="bars-${i}">${scoreBars(breakdown)}</div>
+        </div>
+
+        <div>
+          <div class="tiny bold muted mb-sm">SKILLS</div>
+          <div class="mb-lg">
+            <div class="tiny muted mb-sm">Matched (${(candidate.matched_skills || []).length})</div>
+            <div class="tag-group">${matchedTags(candidate.matched_skills) || '<span class="small muted">—</span>'}</div>
+          </div>
+          <div class="mb-lg">
+            <div class="tiny muted mb-sm">Missing (${(candidate.missing_skills || []).length})</div>
+            <div class="tag-group">${missingTags(candidate.missing_skills) || '<span class="small green bold">All covered ✓</span>'}</div>
+          </div>
+          <div class="tiny muted">${candidate.education || ''}</div>
+          <div style="background:${color}12;border:1.5px solid ${color}30;border-radius:var(--round-md);padding:.65rem .9rem;font-size:.78rem;font-weight:600;color:${color};margin-top:.75rem">
+            ${candidate.recommendation || ''}
+          </div>
+        </div>
+
+        <div>
+          <div class="tiny bold muted mb-sm">FAIRNESS CHECK</div>
+          ${fairnessPanel(candidate.bias_check)}
+        </div>
+
+      </div>
+
+      <div class="divider mt-lg"></div>
+      ${reasoningSummary(candidate)}
+    </div>
+  </div>`;
+
+  setTimeout(() => triggerBars(document.getElementById(`bars-${i}`)), 80);
+  drawer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+</script>
+{% endblock %}

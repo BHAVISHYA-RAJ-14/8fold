@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Wise — See Who Can Actually Do the Job{% endblock %}
+{% block content %}
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="hero-pill"><span class="live-dot"></span>Resume Parsing · GitHub Verification · Provably Fair</div>
+    <h1 class="hero-title">See who can<br/><span class="shiny">actually do the job.</span></h1>
+    <p class="hero-desc">Wise parses resumes, reads real GitHub activity, and scores candidates against any job description — with a full reasoning chain and a fairness check on every result.</p>
+    <div class="hero-actions">
+      <a href="/analyse" class="btn btn-white btn-large">Analyse a Candidate</a>
+      <a href="/match"   class="btn btn-ghost btn-large">Rank the Pool</a>
+    </div>
+    <div class="hero-shortcuts">
+      <span class="hero-shortcuts-label">Quick keys</span>
+      <button class="shortcut-pill" onclick="openShortcuts()" title="View all shortcuts"><kbd>?</kbd> All shortcuts</button>
+      <span class="shortcut-pill" onclick="doNav('/analyse')"><kbd>A</kbd> Analyse</span>
+      <span class="shortcut-pill" onclick="doNav('/match')"><kbd>M</kbd> Match</span>
+      <span class="shortcut-pill" onclick="doNav('/report')"><kbd>R</kbd> Report</span>
+      <span class="shortcut-pill" onclick="doNav('/compare')"><kbd>C</kbd> Compare</span>
+    </div>
+  </div>
+  <div class="scroll-hint"><svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M5 11l5 5 5-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+</section>
+
+<div style="background:var(--off);border-bottom:1px solid var(--border);padding:2rem 0">
+  <div class="wrap">
+    <div class="numbers four">
+      <div class="number-box text-center on-scroll"><div class="number-label">Skills Tracked</div><div class="number-value blue" id="cnt1">0</div></div>
+      <div class="number-box text-center on-scroll delay-1"><div class="number-label">GitHub Signals</div><div class="number-value purple" id="cnt2">0</div></div>
+      <div class="number-box text-center on-scroll delay-2"><div class="number-label">Fairness Delta</div><div class="number-value green">Δ = 0</div></div>
+      <div class="number-box text-center on-scroll delay-3"><div class="number-label">Audit Coverage</div><div class="number-value blue">100%</div></div>
+    </div>
+  </div>
+</div>
+
+<section class="section" id="taggerSection">
+  <div class="wrap">
+    <div class="grid-two" style="align-items:center;gap:4rem">
+      <div class="on-scroll">
+        <div class="section-eyebrow">Try It Instantly</div>
+        <h2 class="section-heading">Paste text. See skills.</h2>
+        <p class="section-intro">Type or paste any resume snippet or job posting below — and watch the extraction engine pick out skills in real time. This exact same logic runs under the hood on every full analysis.</p>
+        <p class="small soft mt-md">No signup. No setup. Just paste.</p>
+      </div>
+      <div class="on-scroll delay-1">
+        <div class="skill-tagger">
+          <textarea id="taggerInput" placeholder="Paste a resume or JD excerpt here…" rows="4" oninput="runTagger()" style="border:none;border-radius:0;box-shadow:none;padding:1.1rem 1.25rem;min-height:95px;resize:none;font-size:.9rem"></textarea>
+          <div class="tagger-foot">
+            <span class="tiny soft" id="taggerCount">Skills appear as you type</span>
+            <button class="btn btn-small" style="background:var(--faint);color:var(--ink-mid);border:none" onclick="document.getElementById('taggerInput').value='';runTagger()">Clear</button>
+          </div>
+        </div>
+        <div id="taggerOutput" class="tag-group mt-md" style="min-height:30px"><span class="tiny soft">Recognised skills will appear here…</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-tinted" id="howSection">
+  <div class="wrap">
+    <div class="text-center mb-xl">
+      <div class="section-eyebrow" style="justify-content:center">How It Works</div>
+      <h2 class="section-heading on-scroll">Four steps. Complete picture.</h2>
+    </div>
+    <div class="grid-four">
+      <div class="feature-tile on-scroll" style="position:relative">
+        <div style="position:absolute;top:1rem;right:1rem" class="chip chip-blue tiny">01</div>
+        <div class="feature-icon" style="background:var(--blue-pale)">📄</div>
+        <h3 style="font-size:.95rem;font-weight:800;margin-bottom:.4rem">Upload Resume</h3>
+        <p class="small soft">PDF parsed automatically. Name, email, skills, GitHub, education — all filled in. You only complete what's missing.</p>
+      </div>
+      <div class="feature-tile on-scroll delay-1" style="position:relative">
+        <div style="position:absolute;top:1rem;right:1rem" class="chip chip-green tiny">02</div>
+        <div class="feature-icon" style="background:var(--green-pale)">⚡</div>
+        <h3 style="font-size:.95rem;font-weight:800;margin-bottom:.4rem">Verify on GitHub</h3>
+        <p class="small soft">Seven independent signals — languages, commit recency, stars, docs, account age — combine into a 0–100 credibility score.</p>
+      </div>
+      <div class="feature-tile on-scroll delay-2" style="position:relative">
+        <div style="position:absolute;top:1rem;right:1rem" class="chip chip-purple tiny">03</div>
+        <div class="feature-icon" style="background:var(--purple-pale)">📊</div>
+        <h3 style="font-size:.95rem;font-weight:800;margin-bottom:.4rem">Score Against JD</h3>
+        <p class="small soft">Technical match, GitHub signal, resume quality, and communication signals — weighted into a 0–100 score with an A–D grade.</p>
+      </div>
+      <div class="feature-tile on-scroll delay-3" style="position:relative">
+        <div style="position:absolute;top:1rem;right:1rem" class="chip chip-gold tiny">04</div>
+        <div class="feature-icon" style="background:var(--gold-pale)">⚖</div>
+        <h3 style="font-size:.95rem;font-weight:800;margin-bottom:.4rem">Fairness Verified</h3>
+        <p class="small soft">Score re-run without name, gender, university, and location. Delta is always zero — provably fair, not just claimed to be.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="githubSection">
+  <div class="wrap">
+    <div class="grid-two" style="align-items:center;gap:4rem">
+      <div class="on-scroll">
+        <div class="section-eyebrow">Real Signals</div>
+        <h2 class="section-heading">GitHub doesn't lie.</h2>
+        <p class="section-intro mb-lg">A polished resume takes 20 minutes to generate. A four-year commit history with 80 peer-reviewed stars does not. We measure what candidates actually built.</p>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:.7rem">
+          <li class="flex gap-md center small"><span style="color:var(--green);font-size:1rem">✓</span>Language distribution weighted by actual code volume</li>
+          <li class="flex gap-md center small"><span style="color:var(--green);font-size:1rem">✓</span>Commit recency — days since last push per repo</li>
+          <li class="flex gap-md center small"><span style="color:var(--green);font-size:1rem">✓</span>Repository complexity and documentation quality</li>
+          <li class="flex gap-md center small"><span style="color:var(--green);font-size:1rem">✓</span>Community stars as peer-validation evidence</li>
+          <li class="flex gap-md center small"><span style="color:var(--green);font-size:1rem">✓</span>Account age as anti-spam and anti-fake indicator</li>
+          <li class="flex gap-md center small"><span style="color:var(--green);font-size:1rem">✓</span>Repo topics → inferred skills with confidence scores</li>
+        </ul>
+      </div>
+      <div class="card on-scroll delay-1" style="padding:1.75rem">
+        <div class="section-eyebrow mb-md" style="font-size:.6rem">Live Example</div>
+        <div class="lang-item"><div class="lang-title">Python</div><div class="lang-bar"><div class="lang-fill" style="width:62%;background:#6366f1"></div></div><div class="lang-pct">62%</div></div>
+        <div class="lang-item"><div class="lang-title">TypeScript</div><div class="lang-bar"><div class="lang-fill" style="width:28%;background:#8b5cf6"></div></div><div class="lang-pct">28%</div></div>
+        <div class="lang-item"><div class="lang-title">Go</div><div class="lang-bar"><div class="lang-fill" style="width:10%;background:#10b981"></div></div><div class="lang-pct">10%</div></div>
+        <div class="divider"></div>
+        <div class="flex apart center mb-sm"><span class="small soft">Credibility Score</span><span class="mono bold green">82 / 100</span></div>
+        <div class="cred-meter" id="homeMeter"></div>
+        <div class="divider"></div>
+        <div class="tiny bold soft mb-sm" style="text-transform:uppercase;letter-spacing:.06em">Activity — 52 weeks</div>
+        <div class="activity-strip" id="homeActivity"></div>
+        <div class="tiny soft mt-sm">Last commit 8 days ago · Active contributor</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-tinted" id="fairnessSection">
+  <div class="wrap">
+    <div class="grid-two" style="align-items:center;gap:4rem">
+      <div class="card on-scroll" style="padding:1.75rem">
+        <div class="section-eyebrow mb-sm" style="font-size:.6rem">Fairness Check — Live Example</div>
+        <div class="fairness-row" style="padding:.5rem 0;border-bottom:1px solid var(--border)"><span class="small soft">Score with name / gender / university</span><span class="mono bold">78.4</span></div>
+        <div class="fairness-row" style="padding:.5rem 0;border-bottom:1px solid var(--border)"><span class="small soft">Score without those fields</span><span class="mono bold">78.4</span></div>
+        <div class="fairness-row" style="padding:.5rem 0"><span class="small soft">Change</span><span class="mono bold green">Δ 0.0</span></div>
+        <div class="fairness-verdict ok mt-sm">Fairness check passed — demographics had zero influence on the score.</div>
+        <div class="divider"></div>
+        <div class="tiny soft" style="line-height:1.65">Scoring uses skill matching, semantic similarity, GitHub credibility, and preferred skill bonus. None of these touch demographic data.</div>
+      </div>
+      <div class="on-scroll delay-1">
+        <div class="section-eyebrow">Transparent Scoring</div>
+        <h2 class="section-heading">Every point.<br/>Explained.</h2>
+        <p class="section-intro mb-lg">We re-run every score without name, gender, university, and location — and show the exact difference. It is always zero. Proven mathematically, not claimed.</p>
+        <div class="flex gap-md" style="flex-wrap:wrap">
+          <a href="/report"  class="btn btn-outline">Run a Fairness Check →</a>
+          <a href="/compare" class="btn btn-outline" style="border-color:var(--purple);color:var(--purple)">Compare Two Candidates →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section section-dark">
+  <div class="wrap text-center" style="position:relative;z-index:1">
+    <h2 class="section-heading on-scroll" style="color:#fff;margin:0 auto .75rem">Ready to see who really fits?</h2>
+    <p class="section-intro on-scroll delay-1" style="color:rgba(255,255,255,.62);margin:0 auto 2rem">Upload a resume, paste a job description, get a full scored report in seconds.</p>
+    <div class="flex middle gap-lg on-scroll delay-2" style="flex-wrap:wrap">
+      <a href="/analyse" class="btn btn-white btn-large">Analyse a Candidate</a>
+      <a href="/match"   class="btn btn-ghost btn-large">Rank the Pool</a>
+      <a href="/compare" class="btn btn-ghost btn-large">Side-by-Side</a>
+    </div>
+  </div>
+</section>
+
+{% endblock %}
+{% block scripts %}
+<script>
+// animated counters
+const cio = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    if (e.target.id === 'cnt1') countUp(e.target, 100, 1200);
+    if (e.target.id === 'cnt2') countUp(e.target, 7, 900);
+    cio.unobserve(e.target);
+  });
+}, { threshold: .5 });
+['cnt1','cnt2'].forEach(id => { const el = document.getElementById(id); if (el) cio.observe(el); });
+
+// home examples
+document.getElementById('homeMeter').innerHTML =
+  Array.from({length:10}, (_, i) => `<div class="cred-dot ${i < 8 ? 'strong' : ''}"></div>`).join('');
+buildActivityStrip('homeActivity', 14, 21);
+buildQuickNav(['taggerSection','howSection','githubSection','fairnessSection']);
+
+// live tagger
+let taggerTimer;
+function runTagger() {
+  clearTimeout(taggerTimer);
+  taggerTimer = setTimeout(async () => {
+    const text = document.getElementById('taggerInput').value.trim();
+    const out  = document.getElementById('taggerOutput');
+    const cnt  = document.getElementById('taggerCount');
+    if (!text) {
+      out.innerHTML = '<span class="tiny soft">Recognised skills will appear here…</span>';
+      cnt.textContent = 'Skills appear as you type';
+      return;
+    }
+    try {
+      const res  = await fetch('/api/extract-skills', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({text}) });
+      const data = await res.json();
+      const skills = data.skills || [];
+      out.innerHTML = skills.length ? skills.map(s => `<span class="skill-tag present">${s}</span>`).join('') : '<span class="tiny soft">No recognised skills — try different phrasing.</span>';
+      cnt.textContent = skills.length ? `${skills.length} skill${skills.length !== 1 ? 's' : ''} found` : '0 skills found';
+    } catch { /* silent */ }
+  }, 320);
+}
+</script>
+{% endblock %}
